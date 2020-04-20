@@ -1,0 +1,521 @@
+---
+title: "Computational statistics Lab 05 Report"
+author: "Karthikeyan Devarajan - Karde799"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+RNGversion(min(as.character(getRversion()),"3.6.2"))
+set.seed(12345, kind = "Mersenne-Twister", normal.kind = "Inversion")
+```
+
+# Question 1: Hypothesis testing
+
+```{r Q01_DataLoading, echo=FALSE, message=FALSE, warning=FALSE}
+# Data Loading
+library(readxl)
+lotteryData <- read.csv(file.choose(),sep = ";")
+
+# Y = Draft_No
+# X = Day_of_year
+```
+
+### Part 01
+
+```{r Q01_1, echo=FALSE, message=FALSE, warning=FALSE}
+# Part 01
+
+plotDaftVsYear = function() {
+  plot(x = lotteryData$Day_of_year,
+       y = lotteryData$Draft_No,
+       pch = 19,
+       cex = 0.3,
+       type = "p",
+       col = "black",
+       xlab = "Days",
+       ylab = "Draft Number",
+       main = "Draft No Vs Day of year"
+  )
+}
+
+plotDaftVsYear()
+```
+
+### Part 02
+
+```{r Q01_2, echo=FALSE, message=FALSE, warning=FALSE}
+# Part 02
+
+yFit = loess(formula = Draft_No ~ Day_of_year,
+             data = lotteryData)
+
+yPred = predict(yFit)
+
+plotDaftVsYearWithLosses = function() {
+  plot(x = lotteryData$Day_of_year,
+       y = lotteryData$Draft_No,
+       pch = 19,
+       cex = 0.3,
+       type = "p",
+       col = "black",
+       xlab = "Days",
+       ylab = "Draft Number",
+       main = "Draft No Vs Day of year with Losses"
+  )
+  lines(x = lotteryData$Day_of_year,
+       y = yPred,
+       col = "blue"
+  )
+  # legend("bottomright", 
+  #        legend = c("Draft No Vs Day of year ","Losses Line"),
+  #        col = c("black","blue"), 
+  #        pch = c(19,NA),
+  #        lty = c(NA,1), 
+  #        cex = 1)
+  
+}
+
+plotDaftVsYearWithLosses()
+
+```
+
+The Losses fit shows that 'Draft number' is getting lower value when number of 'Day of the year' increases.
+
+### Part 03
+
+```{r Q01_3, echo=FALSE, message=FALSE, warning=FALSE}
+# Part 03
+getTestStat = function(testdata) {
+
+  bootstrap_fit = loess(formula = Draft_No ~ Day_of_year,
+                        data = testdata)
+  yBootPred = predict(bootstrap_fit)
+
+  X_b = testdata$Day_of_year[which(yBootPred == max(yBootPred))][1]
+  X_a = testdata$Day_of_year[which(yBootPred == min(yBootPred))][1]
+
+  # Test Statistics
+  if (X_a == X_b) {
+    return(0)
+  } else {
+    T_value = (yBootPred[X_b] - yBootPred[X_a]) / (X_b - X_a)
+    return(T_value)
+  }
+
+}
+
+getBootPValue = function(B,casedata,oneSide = T) {
+  bootStat = numeric(B)
+  n = dim(casedata)[1]
+
+  for (b in 1:B) {
+    # create new sample with Replacement(Bootstrap method)
+    generated_bs = sample(casedata$Day_of_year, n, replace = T)
+    newTestDB = casedata # Copy original DB
+    newTestDB$Draft_No = newTestDB$Draft_No[generated_bs] # Append new sample
+    newTestDB$Day_of_year = newTestDB$Day_of_year[generated_bs] # Append new sample
+    bootStat[b] = getTestStat(newTestDB)
+  }
+
+  bootStat0 = getTestStat(casedata)
+  test_p_val = 0
+
+  if (oneSide == T) {
+    test_p_val = mean(bootStat > bootStat0)
+  } else {
+    test_p_val = mean(abs(bootStat) > abs(bootStat0))
+  }
+
+  returnData = list("t0" = bootStat0,
+                    "t" = bootStat,
+                    "p_Value" = test_p_val)
+  return(returnData)
+}
+
+getBootstrpPdata = getBootPValue(B = 2000,
+                                 casedata = lotteryData,
+                                 oneSide = F)
+hist(getBootstrpPdata$t,
+     breaks = 50,
+     probability = T,
+     main = 'Histogram of Bootstrap p-value',
+     xlab = 'Test Statistic')
+lines(density(getBootstrpPdata$t),
+      col = 'red',
+      lty = 2)
+legend("topright",
+       legend = c("Density Curve"),
+       col = c("red"),
+       lty = c(2),
+       cex = 1)
+cat('p_value is:- ', getBootstrpPdata$p_Value, '\n')
+cat('T Value is:- ', getBootstrpPdata$t0, '\n')
+print(quantile(getBootstrpPdata$t,c(0.025,0.975)))
+
+```
+
+Two - sided test was used for the given senario. Let's take $\alpha = 0.05$ for the test. Generated p-value is lower than the $\alpha = 0.05$. Hence we could reject the $H_0$ Hypothesis and Lottery is not random.
+
+### Part 04
+
+```{r Q01_4, echo=FALSE, message=FALSE, warning=FALSE}
+# Part 04
+
+getPermutationTestPValue = function(B,casedata,oneSide = T) {
+  bootStat = numeric(B)
+  n = dim(casedata)[1]
+
+  for (b in 1:B) {
+    # create new sample without replacement(Permutation method)
+    generated_bs = sample(casedata$Day_of_year, n, replace = F) # create new sample
+    newTestDB = casedata # Copy original DB
+    newTestDB$Draft_No = newTestDB$Draft_No[generated_bs] # Append new sample
+    newTestDB$Day_of_year = newTestDB$Day_of_year[generated_bs] # Append new sample
+    bootStat[b] = getTestStat(newTestDB)
+  }
+
+  bootStat0 = getTestStat(casedata)
+  test_p_val = 0
+
+  if (oneSide == TRUE) {
+    test_p_val = mean(bootStat > bootStat0)
+  } else {
+    test_p_val = mean(abs(bootStat) > abs(bootStat0))
+  }
+
+  returnData = list("t0" = bootStat0,
+                    "t" = bootStat,
+                    "p_Value" = test_p_val)
+  return(returnData)
+}
+
+
+permu_text_data = getPermutationTestPValue(B = 2000,
+                                           casedata = lotteryData,
+                                           oneSide = F)
+
+hist(permu_text_data$t,
+     breaks = 50,
+     probability = T,
+     main = 'Histogram of Permutation p-value',
+     xlab = 'Test Statistic')
+lines(density(permu_text_data$t),
+      col = 'red',
+      lty = 2)
+legend("topright",
+       legend = c("Density Curve"),
+       col = c("red"),
+       lty = c(2),
+       cex = 1)
+
+cat('p_value is:- ', permu_text_data$p_Value, '\n')
+cat('T Value is:- ', permu_text_data$t0, '\n')
+print(quantile(permu_text_data$t,c(0.05,0.95)))
+
+```
+
+Two - sided test was used for the above senario. Generated p-value is 0 and it's below than the $\alpha = 0.05$. Hence we could reject the $H_0$ and Lottery is not random.
+
+### Part 05 A
+
+```{r Q01_05_A, echo=FALSE, message=FALSE, warning=FALSE}
+generateNewDataset = function(alpha,userdataset) {
+
+  x_data = userdataset$Day_of_year
+  betaValue = rnorm(1,
+                     mean = 183,
+                     sd = 10)
+  newY_values = c()
+  for (index in 1:length(x_data)) {
+    generatedValue = (alpha * x_data[index]) + betaValue
+    newY_values = c(newY_values, max(c(0, min(c(generatedValue, 366)))))
+  }
+
+  userdataset$Draft_No = newY_values
+  return(userdataset)
+}
+
+alpha01Dataset = generateNewDataset(0.1,lotteryData)
+hist(alpha01Dataset$Draft_No,
+     breaks = 50,
+     probability = T,
+     main = 'Histogram of New Dataset for Alpha = 0.1',
+     xlab = 'Draft Number')
+lines(density(alpha01Dataset$Draft_No),
+      col = 'red',
+      lty = 2)
+legend("bottomright",
+       legend = c("Density Curve"),
+       col = c("red"),
+       lty = c(2),
+       cex = 1)
+```
+
+Generated histogram is similar to the uniform distribution.
+
+### Part 05 B
+
+```{r Q01_05_B, echo=FALSE, message=FALSE, warning=FALSE}
+# Part b
+
+getAlpha01DataP_val = getPermutationTestPValue(B = 200,
+                                               casedata = alpha01Dataset,
+                                               oneSide = F)
+hist(getAlpha01DataP_val$t,
+     breaks = 50,
+     probability = T,
+     main = 'Histogram of Permutation p-value for Alpha 0.1')
+lines(density(getAlpha01DataP_val$t),
+      col = 'red',
+      lty = 2)
+legend("topright",
+       legend = c("Density Curve"),
+       col = c("red"),
+       lty = c(2),
+       cex = 1)
+
+cat('p_value is:- ', getAlpha01DataP_val$p_Value, '\n')
+cat('T Value is:- ', getAlpha01DataP_val$t0, '\n')
+print(quantile(getAlpha01DataP_val$t,c(0.05,0.95)))
+
+```
+
+Two - sided test was used for the above senario. Generated p-value is 0 and it's below than the $\alpha = 0.05$. Hence we could reject the $H_0$ and Lottery is not random.
+
+### Part 05 C
+
+Here are the generated p-values for the $\alpha$ values.
+
+```{r Q01_05_C, echo=FALSE, message=FALSE, warning=FALSE}
+alphaSeq = seq(from = 0.2,
+               to = 10,
+               by = 0.1)
+
+alphaPValues = c()
+
+for (alpha in alphaSeq) {
+
+  newdataset = generateNewDataset(alpha,lotteryData)
+  getNewdataP_val = getPermutationTestPValue(B = 200,
+                                             casedata = newdataset,
+                                             oneSide = F)
+  alphaPValues = c(alphaPValues, getNewdataP_val$p_Value)
+}
+
+printAlphaRejetionTable = function() {
+  rejectionTable = data.frame('Alpha' = alphaSeq,
+                              'p-values' = alphaPValues)
+  print(rejectionTable)
+}
+
+printAlphaRejetionTable()
+```
+
+All p-values are equal to 0 and all values are rejecting $H_0$.
+
+Lower the significance level $\alpha$, the lower the power of the test. If significance level reduced, the acceptance region gets bigger. Hence it's less likely to reject $H_0$. and less likely to reject the $H_0$ when it is false, so it's more likely to make a Type II error. Finally, the power of the test is reduced when the significance level reduces.
+
+# Question 2: Bootstrap, jackknife and confidence intervals
+
+```{r Q02_Data_loading, echo=FALSE, message=FALSE, warning=FALSE}
+library(readxl)
+library(boot)
+
+homePricesData <- read.csv(file.choose(),sep = ";")
+```
+
+
+### Part 01
+
+```{r Q02_1, echo=FALSE, message=TRUE, warning=FALSE}
+hist(homePricesData$Price,
+     main = "Histogram for House Prices",
+     xlab = "Price",
+     border = "blue",
+     col = "green",
+     prob = TRUE)
+lines(density(homePricesData$Price),
+      col = "red")
+
+meanHousePrice = mean(homePricesData$Price)
+
+cat('Mean House Price :- ', meanHousePrice, '\n')
+```
+
+### Part 02
+
+Bootstrap Variance Estimator :-
+
+$$\hat{Var[T(.)]} = \frac{1}{B-1} \sum_{i=1}^B(T(D_i^*))-\overline{T(D^*)})^2$$
+
+Bias Correction :- 
+
+$$T_1 = 2T(D) - \frac{1}{B} \sum_{i=1}^B T_i^*$$
+
+```{r Q02_2, echo=FALSE, message=FALSE, warning=FALSE}
+# Part 02
+
+getBootdata = function(userdata,B) {
+
+  calcBootStat = function(data, indices) {
+    selectedData = data[indices,] # allows boot to select sample
+    c(mean(selectedData$Price))
+  }
+
+  boot_data = boot(data = userdata,
+                   statistic = calcBootStat,
+                   R = B)
+
+  return(boot_data)
+}
+
+getBootVarEstimate = function(bootdata) {
+  B = 1000 # Bootstrap 
+  bootstrap_var_stat = (1 / (B - 1)) * sum((bootdata$t - mean(bootdata$t)) ** 2)
+  return(bootstrap_var_stat)
+}
+
+getBootBiasCorrection = function(bootdata) {
+  bias_correction = (2 * mean(homePricesData$Price)) - mean(bootdata$t)
+  return(bias_correction)
+}
+
+houseBootData = getBootdata(homePricesData, 1000)
+cat('Estimated Variance of the Mean :- ', getBootVarEstimate(houseBootData), '\n')
+cat('Bootstrap Bias Correction :- ', getBootBiasCorrection(houseBootData), '\n')
+
+plot(houseBootData) # Plot bootstrap data
+boot.ci(houseBootData) # Bootstrap confidence Interval
+
+```
+
+### Part 03
+
+JackKnife Variance of Estimator :-
+
+$$\hat{Var[T(.)]} = \frac{1}{n(n-1)}\sum_{i=1}^{n}((T_i^*)-\overline{T_i^*})^2$$
+
+Where ;
+
+$$T_i^* = nT(D)- (n-1)T(D_i^*)$$
+
+$$\overline{T_i^*} = J(T) = \frac{1}{n} \sum_{i=1}^nT_i^*$$
+
+
+```{r Q02_3, echo=FALSE, message=FALSE, warning=FALSE}
+# Part 03
+
+# Jackknief Mean
+
+getJKMean = function(userdata) {
+  jk_mean = c()
+
+  for (index in 1:nrow(userdata)) {
+    selectedset = userdata[-index,]
+    # get mean estimator (In this case mean price)
+    jk_mean[index] = mean(selectedset$Price)
+  }
+  return(jk_mean)
+}
+
+
+getJKVarianceEstimate = function(userdata) {
+  jk_mean_val = getJKMean(userdata)
+
+  n = nrow(userdata)
+  #Calculate Ti
+  t_i = (n * mean(userdata$Price)) - ((n - 1) * jk_mean_val)
+
+  #Calculate Ti - J(T)
+  j_t = t_i - mean(t_i)
+
+  return( (1 / (n * (n - 1))) * sum(j_t ** 2))
+}
+
+#getJKVarianceEstimate(homePricesData)
+#getJKMean(homePricesData)
+cat('Jackknief Estimated Variance of the mean :-', getJKVarianceEstimate(homePricesData), '\n')
+cat('Bootstrap Variance Estimate :- ', getBootVarEstimate(houseBootData), '\n')
+
+```
+
+Jackknief method gives a much larger Estimated Variance of the mean rather than the Bootstrap Estimated Variance of the mean.
+
+### Part 04
+For large n, the jackknife estimate is approximately normally distributed about the true parameter mean. A 95% confidence interval for mean can be estimated as
+
+$$\hat{\theta} + t_{0.975,n-1} \sqrt{Var(\hat\theta)}$$
+$$\hat{\theta} - t_{0.975,n-1} \sqrt{Var(\hat\theta)}$$
+
+```{r Q02_4, echo=FALSE, message=FALSE, warning=FALSE}
+# Part 04
+
+getJKConfidenceInterval = function(confLevel,userdata) {
+  jk_mean = mean(getJKMean(userdata))
+  hbootdata = getBootdata(userdata, 1000)
+  var_est = getBootVarEstimate(hbootdata)
+  n = nrow(userdata)
+  ci = confLevel + ((1 - confLevel) / 2)
+
+  lower_limit = jk_mean - (qt(ci, n - 1) * (sqrt(var_est)))
+  upper_limit = jk_mean + (qt(ci, n - 1) * (sqrt(var_est)))
+
+  return(list('Lower' = lower_limit,
+              'Upper' = upper_limit,
+              'Mean' = mean(getJKMean(homePricesData))))
+}
+
+jkdata = getJKConfidenceInterval(0.95,homePricesData)
+genBootData = getBootdata(homePricesData, 1000)
+genBootCIData = boot.ci(houseBootData)
+
+com_lower_vect = c(genBootCIData$percent[4],
+                   genBootCIData$bca[4],
+                   genBootCIData$normal[2],
+                   jkdata$Lower)
+
+com_upper_vect = c(genBootCIData$percent[5],
+                   genBootCIData$bca[5],
+                   genBootCIData$normal[3],
+                   jkdata$Upper)
+
+com_mean_vect = c(mean(genBootData$t),
+                  mean(genBootData$t),
+                  mean(genBootData$t),
+                  jkdata$Mean)
+
+com_len_vect = c(1000,
+                 1000,
+                 1000,
+                 nrow(homePricesData))
+
+
+comp_dataset = data.frame('Lower' = com_lower_vect,
+                          'Upper' = com_upper_vect,
+                          'Mean' = com_mean_vect,
+                          'Length' = com_len_vect)
+
+rownames(comp_dataset) = c('Percentile',
+                           'BCa',
+                           'Normal',
+                           'Jackknife')
+
+print(comp_dataset)
+```
+
+
+# References
+
+https://onlinelibrary.wiley.com/doi/pdf/10.1002/9780470906514.app2
+
+https://stattrek.com/hypothesis-test/power-of-test.aspx
+
+https://stats.stackexchange.com/questions/20701/computing-p-value-using-bootstrap-with-r
+
+## APPENDIX
+
+```{r ref.label=knitr::all_labels(), eval = FALSE}
+```

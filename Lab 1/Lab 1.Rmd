@@ -1,0 +1,315 @@
+---
+title: "Group 12 Computational statistics Lab 02 Report"
+author: "Karthikeyan Devarajan - Karde799"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Question 1: Be careful when comparing
+
+#### 1. Check the results of the snippets. Comment what is going on.
+
+```{r question01_1}
+x1 <- 1/3
+x2 <- 1/4
+
+if ((x1 - x2) == 1/12) {
+  print("Substraction is correct")
+} else {
+  print("Substraction is wrong")
+}
+```
+
+
+For the first snippet, result is "Substraction is wrong".
+
+```{r question01_2}
+x1 <- 1
+x2 <- 1/2
+
+if ((x1 - x2) == 1/2) {
+  print("Substraction is correct")
+} else {
+  print("Substraction is wrong")
+}
+```
+
+For the second snippet, result is "Substraction is correct".
+
+For the first snippet, X1 value is 1/3. But when we check the value of 1/3 for 22 digits, we got something like this :-
+
+```{r question01_3}
+x1 <- 1/3
+options(digits = 22)
+print(x1)
+```
+So R is going to show 1/3 is equal to 0.3333333333333333148296. So this is not true. Since Floats are rounded, so usual mathematical laws do not hold.
+
+But for the second snippet X1 and X2 values do not have any differnce since X1 and X2 values do not effect when the Floats are rounded for 22 digits.
+
+#### 2. If there are any problems, suggest improvements. 
+
+We could use R in build function $all.equal()$. This Function is a utility to compare R objects x and y testing 'near equality'. If they are different, comparison is still made to some extent, and a report of the differences is returned. [Reference - R Document]
+
+
+```{r question01_4}
+
+x1 <- 1/3
+x2 <- 1/4
+
+if (isTRUE(all.equal((x1 - x2), (1/12)))) {
+  print("Substraction is correct")
+} else {
+  print("Substraction is wrong")
+}
+```
+
+## Question 2: Derivative
+
+From the defintion of a derivative :-
+
+$\displaystyle f^{'}(x) = \frac{f(x + \epsilon) - f(\epsilon)}{\epsilon}$
+
+#### 1. Write your own R function to calculate the derivative of $f(x) = x$ in this way with $\epsilon = 10 ^ {-15}$.
+
+Here is the function for the Derivative for $f(x) = x$ where $\epsilon = 10 ^ {-15}$
+
+```{r question02_1}
+getDer <- function(x) {
+  h = 10 ^ -15
+  f_dash = ((x + h) - x) / h
+  options(digits = 22)
+  cat("x + h is ",  x + h , "\n")
+  cat("(x + h) - x is ", ((x + h) - x), "\n")
+  cat("Derivative is ", f_dash, "\n")
+}
+```
+
+#### 2. Evaluate your derivative function at x = 1 and x = 100000.
+
+```{r question02_2}
+getDer(1)
+```
+
+```{r question02_3}
+getDer(100000)
+```
+
+#### What values did you obtain?
+
+We have obtained 1.110223024625156540424 for the $x=1$ and 0 for $x=100000$.
+
+#### What are the true values?
+
+Actually true values should be 1 for both $x=1$ and $x=100000$ cases. We could get this value when we solve this equation by mathematically.
+
+#### Explain the reasons behind the discovered differences.
+
+##### For the $x = 1$ case :-
+
+Since $1 + 10 ^ {-15}$ is rounded to the possbile nearest value which is $1.000000000000001110223$. True value should be $1.000000000000001000000$. So there is an error when we do the substraction $(x + h) - x$. That's why we get $1.110223024625156540424$ rather than $1$
+
+##### For the $x = 100000$ case :-
+
+Since $100000 + 10 ^ {-15}$ is rounded to the possbile nearest value which is $100000$. Decimal value is so small when comparing to the $100000$ value. Hence deciaml value is ignored. Therefore the result for the $(x + h) - x$ is 0. and when we devide 0 by any value we get the 0 as the answer.
+
+## Question 3: Variance
+
+#### 1. Write your own R function, myvar, to estimate the variance in this way.
+
+```{r question03_1}
+myvar <- function(x) {
+  xi_squared = sum(x ^ 2)
+  x_squared = (1 / (length(x))) * ((sum(x)) ^ 2)
+  val = (1 / (length(x) - 1)) * (xi_squared - x_squared)
+  return(val)
+}
+
+```
+
+#### 2. Generate a vector x = (x1, . . . , x10000) with 10000 random numbers with mean 10^8 and variance 1.
+
+```{r question03_2}
+RNGversion(min(as.character(getRversion()),"3.6.2"))
+set.seed(12345, kind = "Mersenne-Twister", normal.kind = "Inversion")
+x = rnorm(10000, mean = 10 ^ 8,sd = 1)
+
+```
+
+
+#### 3. For each subset Xi = {x1,...,xi},i=1,...,10000 compute the difference Yi = myvar(Xi) - var(Xi), where var(Xi) is the standard variance estimation function in R. Plot the dependence Yi on i. Draw conclusions from this plot. How well does your function work? Can you explain the behaviour?
+
+```{r question03_3}
+Yi = c()
+
+for (index in 1:10000) {
+  Yi[index] = myvar(x[1:index]) - var(x[1:index])
+}
+
+cat("Head Data")
+print(head(Yi, n = 10))
+cat("\n")
+cat("Tail Data")
+print(tail(Yi, n = 10))
+cat("\n")
+
+plot(1:1000,
+     Yi[1:1000],
+     type = 'p',
+     xlab = "Number of Variables",
+     ylab = "Yi",
+     main = "Scatter Plot - Yi Vs Number of Variables")
+
+plot(1:1000,
+     Yi[1:1000],
+     type = 'l',
+     xlab = "Number of Variables",
+     ylab = "Yi",
+     main = "Line Plot - Yi Vs Number of Variables")
+```
+
+
+Difference $Y_i$ values are in between -4 to 3. Hence $myvar$ function do not have a high accurancy. But when comparing to the vector values with $Y_i$ it's really small error. We are dealing with large numbers in this function. 
+
+Adding two large numbers the sign bit can be treated as a high order bit and on some architectures results in a negative number. Hence Overflow would be the reason behind this behaviour.
+
+#### 4. How can you better implement a variance estimator? Find and implement a formula that will give the same results as var()?
+
+We can use below equation in order to get the variance. We can remove the factors such as squared value of sample value, therfore we could remove the effect of overflows from the equation.
+
+$\displaystyle Var(x) = \frac{\sum_{i = 1}^{n}(x_i - \overline{x}) ^ 2}{n - 1}$
+
+```{r question03_4}
+myvarOpt <- function(x) {
+
+  total = 0
+  for (i in 1:length(x)) {
+    total = total + x[i]
+  }
+  vectMean = total / length(x)
+
+  totalDif = 0
+
+  for (index in 1:length(x)) {
+    totalDif = totalDif + ((x[index] - vectMean) ^ 2)
+  }
+
+  return(totalDif / (length(x) - 1))
+}
+
+Yi_Optimal = c()
+
+for (index in 1:10000) {
+  Yi_Optimal[index] = myvarOpt(x[1:index]) - var(x[1:index])
+}
+
+plot(1:1000,
+     Yi_Optimal[1:1000],
+     type = 'l',
+     xlab = "Number of Variables",
+     ylab = "Yi",
+     main = "Yi Vs Number of Variables")
+```
+
+Difference between $var()$ and $myvar$ values are significantly low. All the values are in between $0$ to $1.5 * e-14$. This is a really small value. New equation has a really good accuracy for low number of variables. Accuracy is getting lower(slightly low) when the number of variables are increasing. Hence we could conclude that this function generates same results as $var()$.
+
+
+## Question 4: Linear Algebra
+
+#### 1. Import the data set to R
+
+```{r question04_1}
+library(readxl)
+mydata = read_excel(file.choose())
+```
+
+#### 2.  Question
+
+```{r question04_2}
+# Load all data and remove Protein Data
+independentData = mydata
+independentData$Protein = c()
+independentData$Sample = c()
+
+dataLength = nrow(mydata)
+dataMatrix = cbind(as.matrix(c(rep(1,dataLength))),
+                   independentData)
+
+# Calculate A and b
+
+A_matrix = t(as.matrix(dataMatrix)) %*% as.matrix(dataMatrix)
+b_matrix = t(as.matrix(dataMatrix)) %*% as.matrix(mydata$Protein)
+```
+
+#### 3.  Question
+
+```{r question04_3,message=FALSE, warning=FALSE,eval=FALSE}
+beta = solve(A_matrix) %*% b_matrix
+```
+
+#### What kind of result did you get? How can this result be explained ?
+
+" This calculation shows below error:-
+Error in solve.default(A_matrix) : system is computationally singular: reciprocal condition number = 7.78804e-17 "
+
+This means that design matrix is not invertible , therfore we can't use matrix to develop a regression model. This is because of strongly correlated variables.
+
+#### 4. Check the condition number of the matrix A (function kappa()) and consider how it is related to your conclusion in step 3.
+
+```{r question04_4}
+k = kappa(A_matrix)
+#print(k)
+cat("Kappa(A) = ", k)
+```
+
+What is kappa ?
+
+The condition number of a regular (square) matrix is the product of the norm of the matrix and the norm of its inverse (or pseudo-inverse), and hence depends on the kind of matrix-norm.
+
+kappa() computes by default (an estimate of) the 2-norm condition number of a matrix or of the R matrix of a QR decomposition, perhaps of a linear fit. The 2-norm condition number can be shown to be the ratio of the largest to the smallest non-zero singular value of the matrix. - [R Documentation Help]
+
+So there is a huge difference between largest and smallest values in the data matrix. 100 channel spectrum is calculated by -log10 of the transmittance. The moisture, fat and protein are determined by analytic chemistry. The units of two different features are different, and arbitrary. This is like the case which something gets more influence than it should.
+
+#### 5. Scale the data set and repeat steps 2 - 4. How has the result changed and why?
+
+```{r question04_5}
+# Scaled Data
+
+scaledMydata = read_excel(file.choose())
+scaledMydata$Protein = c()
+scaledMydata$Sample = c()
+scaledMydata = scale(scaledMydata)
+
+scaledDataMatrix = cbind(as.matrix(c(rep(1,dataLength))),
+                         scaledMydata)
+
+
+scaled_A_matrix = t(as.matrix(scaledDataMatrix)) %*% as.matrix(scaledDataMatrix)
+scaled_b_matrix = t(as.matrix(scaledDataMatrix)) %*% as.matrix(scale(mydata$Protein))
+
+beta = solve(scaled_A_matrix) %*% scaled_b_matrix
+
+cat("Kappa(A) = ", kappa(scaled_A_matrix))
+
+print(beta)
+```
+
+By scaling the all column values we could set a common scale and we could reduced the ratio of the largest to the smallest value of the matrix.  
+# Appendix
+```{r ref.label=knitr::all_labels(), echo = T, eval = F}
+```
+  
+  
+
+
+
+
+
+
+
+
